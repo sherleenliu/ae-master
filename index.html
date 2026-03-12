@@ -1268,7 +1268,7 @@
       </div>
       <!-- Quick search dropdown (original behaviour) -->
       <div class="search-results" id="searchResults"></div>
-      <!-- AI Chat panel -->
+      <!-- AI Chat panel (inline dropdown) -->
       <div class="ai-panel" id="aiPanel">
         <div class="ai-panel-header">
           <span class="ai-panel-title">✦ AE Master AI</span>
@@ -1283,6 +1283,7 @@
           <span></span><span></span><span></span>
         </div>
       </div>
+
     </div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0;">
       <div style="background:rgba(90,220,160,0.09);border:1px solid rgba(90,220,160,0.22);border-radius:8px;padding:6px 12px;font-size:12px;color:#5ADCA0;font-weight:600;">
@@ -2459,72 +2460,297 @@ document.addEventListener('click', e => {
 });
 
 // ─── AI CHAT ───
-const AI_CONTEXT = `你是 AE Master，一個服務於台灣廣告公司（李奧貝納/Prodigious）新進 AE（客戶服務）的內部 AI 助理。
-你的個性：專業、簡潔、有幫助，偶爾帶一點親切感。用繁體中文回答，保持口語自然。
+// ═══════════════════════════════════════════════════════════
+//  AE MASTER — 本地知識庫問答引擎（純前端，零外部依賴）
+// ═══════════════════════════════════════════════════════════
 
-【公司資訊】
-公司統編：
-- 李奧貝納：22522904
-- 明思力 (Prodigious)：76867333
-- 金獅子：96970476
-- 上奇廣告：88385439
+const KB = [
+  // ── 公司統編 ──
+  { keys:['統編','稅號','公司號','統一編號','tax'],
+    ans:`**公司統編**
 
-【PC 製片團隊 — 影片製作窗口】
-主管：Evans Kao（evans.kao@leoburnett.com.tw）
+・李奧貝納：22522904
+・明思力 (Prodigious)：76867333
+・金獅子：96970476
+・上奇廣告：88385439` },
+
+  // ── PC 製片 ──
+  { keys:['製片','影片','拍片','TVC','MV','品牌影片','社群短片','evans','jasmine','帛江','jochi','joey','拍攝窗口'],
+    ans:`**PC 製片團隊**（影片製作窗口）
+
+主管：Evans Kao
+evans.kao@leoburnett.com.tw
 協力：Jasmine、帛江、Jochi、Joey
-什麼時候找他們：要拍 TVC、MV、品牌影片、社群短片
 
-【PC 製管團隊 — 非影片製作窗口】
-主管：Tracy Lin（tracy.lin@prodigious.com）
+適用：TVC、MV、品牌影片、社群短片等所有影片製作` },
+
+  // ── PC 製管 ──
+  { keys:['製管','tracy','uly','may','tina','mandy','stella','jessica','ivy','電修','retouch','網頁','活動','平面拍攝','插畫','贈品','租圖','模特','印刷','非影片'],
+    ans:`**PC 製管團隊**（非影片製作窗口）
+
+主管：Tracy Lin
+tracy.lin@prodigious.com
 協力：Uly Yu、May Tzou、Tina Wang、Mandy Tai、Stella Hsu、Jessica Chiang
-印刷專責：Ivy Shih（ivy.shih@prodigious.com）
-什麼時候找他們：電修、網頁、實體活動、平面拍攝、插畫、贈品、租圖、模特、印刷
+印刷專責：Ivy Shih — ivy.shih@prodigious.com
 
-【常用系統連結】
-- Media Ocean（財務系統）：http://hkhkgpfissc0019.global.publicisgroupe.net/BCC.Enterprise.WebApplication/Default.aspx
-- 考勤系統：https://cloud.take5people.net/PUB/CompanyLogon.aspx?companyCode=PUB
-- 快遞系統：https://www.global-business.com.tw/
-- 列印系統：https://printamea.publicisgroupe.net/Cirrato/selfservice/shortid.aspx
+適用：電修、網頁、實體活動、平面拍攝、插畫、贈品、租圖/圖庫、模特、印刷` },
 
-【財務 SOP】
-- 估價單：先用 Media Ocean 建立 Job，找 Tracy/財務確認預算
-- 發票申請：填財務表單 → 附估價單 → 送財務審核
-- 代墊 (Expense Claim)：保留收據 → 填代墊表單 → 主管簽核 → 送財務
-- 出差申請：出差前提交申請單，機票/住宿需預先核准
-- Campaign Code：向財務申請，需提供客戶名稱和專案名稱
-- 開卡號 Spectra PF：聯繫財務部門
+  // ── 製片 vs 製管 ──
+  { keys:['差別','不同','製片製管','怎麼分','誰負責','找誰'],
+    ans:`**製片 vs 製管 — 怎麼分？**
 
-【法務 SOP】
-- 合約申請：填合約申請單 → 法務審核 → 主管簽核
-- 用印申請：填用印申請單，需附合約/文件
+**找製片（Evans）**
+→ 所有影片類：TVC、MV、品牌影片、社群短片
 
-【櫃台 SOP】
-- 快遞申請：填線上快遞表單（系統連結如上）
-- 文具申請：向櫃台填文具申請表
-- 影印/列印：用列印系統（Cirrato）
+**找製管（Tracy）**
+→ 非影片類全部：電修、網頁、活動、平面、插畫、贈品、租圖、模特、印刷
 
-【IT SOP】
-- 器材申請：填 IT 申請表，說明用途和時間
-- 器材報修：聯繫 IT，填報修單
+簡單記：有「動」的找製片，其他找製管` },
 
-【HR SOP】
-- 請假：在考勤系統申請，主管線上核准
-- 銷假：同上，選銷假類型
+  // ── 估價單 ──
+  { keys:['估價','估價單','報價','jobcode','job code','開job','media ocean','mo '],
+    ans:`**估價單 / 開 Job**
 
-【TVC 製作六大階段】
-1. 提案/Briefing → 2. PPM（前製會議）→ 3. 拍攝 → 4. 後製 Offline → 5. 後製 Online/調色/配音 → 6. 完片 Delivery
+1. 先在 Media Ocean 建立 Job
+2. 找 Tracy（製管）或 Evans（製片）確認製作預算
+3. 等廠商回估後送財務審核
 
-【AE 新人重要觀念】
-- 製片（PC Film）：負責影片製作，Evans 主責
-- 製管（PC Management）：負責所有非影片的製作物，Tracy 主責
-- AE 的角色：客戶與創意/製作之間的橋梁，需要確保 brief 清晰、時程可行、預算合理
-- 估價要早：製作物需要時間估價，不要等到最後才問
-- 任何新案子都先開 Job（Media Ocean），才能申請費用
+⚠️ 記住：任何新案子都要先開 Job，才能後續申請費用` },
 
-如果問題超出以上範圍，誠實說不知道，建議找直屬主管或相關部門確認。
-回答要簡潔，重點先說，必要時用條列。`;
+  // ── 代墊 / Expense Claim ──
+  { keys:['代墊','expense','claim','報帳','報銷','墊款','自付'],
+    ans:`**代墊申請（Expense Claim）**
 
-let aiHistory = [];
+1. 保留所有收據（抬頭填公司名）
+2. 填代墊申請表單
+3. 主管簽核
+4. 送財務部門
+
+💡 注意：出差費用須在出差前先申請，不可事後補` },
+
+  // ── 出差 ──
+  { keys:['出差','差旅','機票','住宿','差旅費'],
+    ans:`**出差申請**
+
+1. 出發前提交出差申請單
+2. 機票、住宿需預先核准（不可自行購買後補件）
+3. 回來後填報代墊表單附收據
+
+⚠️ 未提前申請可能無法報帳` },
+
+  // ── 發票 ──
+  { keys:['發票','invoice','請款','請求付款'],
+    ans:`**發票申請流程**
+
+1. 填財務發票申請表單
+2. 附上相關估價單
+3. 送財務審核
+4. 財務開立後通知廠商
+
+如有疑問請聯繫財務部門` },
+
+  // ── Campaign Code ──
+  { keys:['campaign','campaign code','活動代碼','專案代碼'],
+    ans:`**Campaign Code 申請**
+
+向財務部門申請，需提供：
+・客戶名稱
+・專案名稱
+・預計時程
+
+開卡號（Spectra PF）也請聯繫財務` },
+
+  // ── 合約 ──
+  { keys:['合約','contract','簽約','法務','合同'],
+    ans:`**合約申請流程**
+
+1. 填合約申請單
+2. 送法務審核
+3. 主管簽核
+4. 用印（如需要，另填用印申請單）` },
+
+  // ── 用印 ──
+  { keys:['用印','蓋章','公司章','印章'],
+    ans:`**用印申請**
+
+1. 填用印申請單
+2. 附上需用印的合約或文件
+3. 送法務/行政審核
+
+通常需要 1–2 個工作天` },
+
+  // ── 快遞 ──
+  { keys:['快遞','寄件','寄送','courier','物流','送件'],
+    ans:`**快遞申請**
+
+使用線上快遞系統申請：
+https://www.global-business.com.tw/
+
+填寄件資訊後由行政安排收件` },
+
+  // ── 文具 ──
+  { keys:['文具','筆','紙','辦公用品','印表紙'],
+    ans:`**文具申請**
+
+向櫃台填文具申請表即可
+常用品項可定期統一申請` },
+
+  // ── 列印 / 影印 ──
+  { keys:['列印','影印','掃描','print','cirrato','印表機'],
+    ans:`**列印 / 影印 / 掃描**
+
+使用公司列印系統（Cirrato）：
+https://printamea.publicisgroupe.net/Cirrato/selfservice/shortid.aspx
+
+遇到問題請聯繫 IT` },
+
+  // ── IT 器材 ──
+  { keys:['器材','設備','電腦','筆電','螢幕','it申請','硬體'],
+    ans:`**IT 器材申請**
+
+1. 填 IT 申請表，說明：
+   ・需要的器材種類
+   ・使用目的
+   ・使用時間
+2. 送 IT 部門審核` },
+
+  // ── 器材報修 ──
+  { keys:['報修','壞了','故障','修理','維修'],
+    ans:`**器材報修**
+
+直接聯繫 IT 部門，填報修單說明問題
+盡量提供：器材型號、故障狀況描述` },
+
+  // ── 請假 ──
+  { keys:['請假','休假','特休','病假','事假','年假'],
+    ans:`**請假申請**
+
+使用考勤系統線上申請：
+https://cloud.take5people.net/PUB/CompanyLogon.aspx?companyCode=PUB
+
+流程：填寫申請 → 系統自動送主管 → 主管線上核准
+
+⚠️ 請記得提前申請，臨時假也要補填` },
+
+  // ── 銷假 ──
+  { keys:['銷假','取消請假','撤銷假'],
+    ans:`**銷假申請**
+
+同樣在考勤系統操作：
+https://cloud.take5people.net/PUB/CompanyLogon.aspx?companyCode=PUB
+
+選「銷假」類型，填寫原請假日期送出即可` },
+
+  // ── TVC 流程 ──
+  { keys:['tvc','製作流程','六大','前製','後製','拍片流程','ppm'],
+    ans:`**TVC 製作六大階段**
+
+1️⃣ Briefing / 提案
+↓
+2️⃣ PPM（Pre-Production Meeting 前製會議）
+↓
+3️⃣ 拍攝
+↓
+4️⃣ 後製 Offline（剪接初版）
+↓
+5️⃣ 後製 Online（調色、配音、字卡）
+↓
+6️⃣ 完片 Delivery
+
+詳細內容可點左側「TVC 製作流程」查看` },
+
+  // ── AE 角色 ──
+  { keys:['ae是什麼','ae的工作','ae做什麼','客戶服務','account','新人'],
+    ans:`**AE 的核心角色**
+
+ AE = 客戶與創意/製作之間的橋梁
+
+主要職責：
+・確保 Brief 清晰、完整
+・確認時程可行（給製作足夠時間）
+・確認預算合理（估價要早！）
+・任何新案子先開 Job（Media Ocean）
+
+💡 新人最常犯的錯：時間壓到最後才問估價` },
+
+  // ── 系統連結 ──
+  { keys:['系統','連結','網址','url','media ocean','考勤','快遞系統','列印系統'],
+    ans:`**常用系統連結**
+
+・**Media Ocean**（財務/Job）
+http://hkhkgpfissc0019.global.publicisgroupe.net/BCC.Enterprise.WebApplication/Default.aspx
+
+・**考勤系統**
+https://cloud.take5people.net/PUB/CompanyLogon.aspx?companyCode=PUB
+
+・**快遞系統**
+https://www.global-business.com.tw/
+
+・**列印系統（Cirrato）**
+https://printamea.publicisgroupe.net/Cirrato/selfservice/shortid.aspx` },
+
+  // ── 打招呼 ──
+  { keys:['你好','hi','hello','嗨','哈囉','早','午','晚'],
+    ans:`嗨！我是 AE Master 👋
+
+有什麼可以幫你的？
+例如：「我要請假」、「製片窗口是誰」、「TVC 流程怎麼走」、「公司統編是多少」` },
+];
+
+// ── 模糊比對 ──
+function kbQuery(q) {
+  const lq = q.toLowerCase().replace(/\s+/g, '');
+  // 1. 精確命中 — 關鍵字直接包含在問題中
+  for (const e of KB) {
+    if (e.keys.some(k => lq.includes(k.toLowerCase().replace(/\s+/g, '')))) {
+      return e.ans;
+    }
+  }
+  // 2. 分字比對 — 問題中的每個字拆開比對
+  const chars = lq.split('');
+  let best = null, bestScore = 0;
+  for (const e of KB) {
+    const allKeys = e.keys.join(' ');
+    let score = 0;
+    for (const c of chars) {
+      if (allKeys.includes(c)) score++;
+    }
+    const ratio = score / Math.max(chars.length, 1);
+    if (ratio > bestScore && ratio > 0.35) { bestScore = ratio; best = e; }
+  }
+  if (best) return best.ans;
+  // 3. 找不到
+  return `這個問題我還沒有對應的資料 🙏
+
+你可以試試以下方向：
+・查看左側選單的相關頁面
+・問具體一點，例如「我要請假怎麼操作」
+・直接聯繫主管或相關部門確認`;
+}
+
+// ── 打字效果輸出 ──
+function aiTypeOut(el, text, onDone) {
+  const lines = text.split('
+');
+  let html = '';
+  lines.forEach((l, i) => {
+    l = l.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html += l + (i < lines.length - 1 ? '<br>' : '');
+  });
+  el.innerHTML = '';
+  const chars = html.split('');
+  let i = 0;
+  // Batch render for speed
+  function tick() {
+    const chunk = Math.min(6, chars.length - i);
+    el.innerHTML = chars.slice(0, i + chunk).join('');
+    i += chunk;
+    if (i < chars.length) requestAnimationFrame(tick);
+    else if (onDone) onDone();
+  }
+  requestAnimationFrame(tick);
+}
+
 let aiIsOpen = false;
 
 function aiOpen() {
@@ -2543,69 +2769,52 @@ function aiClose() {
   panel.classList.remove('open');
 }
 
-function aiAddMsg(role, text) {
+function aiAddMsg(role, text, animate) {
   const msgs = document.getElementById('aiMessages');
   const div = document.createElement('div');
   div.className = `ai-msg ai-msg--${role}`;
-  // Simple markdown-lite: **bold**, newlines
-  const formatted = text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>');
-  div.innerHTML = `<div class="ai-msg-bubble">${formatted}</div>`;
+  const bubble = document.createElement('div');
+  bubble.className = 'ai-msg-bubble';
+  div.appendChild(bubble);
   msgs.appendChild(div);
+
+  if (animate && role === 'assistant') {
+    aiTypeOut(bubble, text, () => { msgs.scrollTop = msgs.scrollHeight; });
+  } else {
+    const formatted = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/
+/g, '<br>');
+    bubble.innerHTML = formatted;
+  }
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-async function aiSend() {
-  const input = document.getElementById('aiInput');
-  const btn   = document.getElementById('aiSendBtn');
+function aiSend() {
+  const input  = document.getElementById('aiInput');
+  const btn    = document.getElementById('aiSendBtn');
   const typing = document.getElementById('aiTyping');
-  const val = input.value.trim();
+  const val    = input.value.trim();
   if (!val || btn.disabled) return;
 
-  // Ensure panel is open
   aiOpen();
-
-  // Add user message
-  aiAddMsg('user', val);
-  aiHistory.push({ role: 'user', content: val });
+  aiAddMsg('user', val, false);
   input.value = '';
 
-  // Show typing
+  // Brief loading feel (50–120ms) then instant local answer
   btn.disabled = true;
   typing.style.display = 'flex';
   const msgs = document.getElementById('aiMessages');
   msgs.scrollTop = msgs.scrollHeight;
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: AI_CONTEXT,
-        messages: aiHistory,
-      })
-    });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || '抱歉，我現在無法回應，請稍後再試。';
-    aiHistory.push({ role: 'assistant', content: reply });
-    aiAddMsg('assistant', reply);
-  } catch(e) {
-    aiAddMsg('assistant', '⚠️ 連線發生問題，請檢查網路後再試。');
-  } finally {
-    btn.disabled = false;
+  const delay = 60 + Math.random() * 80;
+  setTimeout(() => {
     typing.style.display = 'none';
-    msgs.scrollTop = msgs.scrollHeight;
-  }
+    btn.disabled = false;
+    const reply = kbQuery(val);
+    aiAddMsg('assistant', reply, true);
+  }, delay);
 }
-
-// Keep history manageable
-function aiTrimHistory() {
-  if (aiHistory.length > 20) aiHistory = aiHistory.slice(-18);
-}
-setInterval(aiTrimHistory, 30000);
 
 // ═══════════════════════════════════════════════════════════
 //  CANVAS ENGINE — atmospheric depth + particles
