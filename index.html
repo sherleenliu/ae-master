@@ -1262,8 +1262,8 @@
       <div class="ai-bar-input-row">
         <span class="ai-bar-icon">✦</span>
         <input type="text" id="aiInput" placeholder="問 AE Master 任何問題…" autocomplete="off"
-          onkeydown="if(event.key==='Enter')aiSend()"
-          onfocus="aiOpen()" oninput="handleSearch(this.value)">
+          onkeydown="if(event.key==='Enter'){aiSend();}"
+        >
         <button class="ai-send-btn" onclick="aiSend()" id="aiSendBtn">↑</button>
       </div>
       <!-- Quick search dropdown (original behaviour) -->
@@ -2305,8 +2305,9 @@
   </div><!-- end content -->
 </main>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 // ─── NAVIGATION — Premium transitions ───
+
 function navigate(pageId, el) {
   const currentPage = document.querySelector('.page.active');
 
@@ -2556,49 +2557,111 @@ function aiAddMsg(role, text) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+const AE_KNOWLEDGE = [
+{
+keywords:["拍片","影片","tvc","拍攝"],
+reply:"🎬 拍影片需要找製片部門。流程：開工單 → 製作需求單 → 前製 → 拍攝 → 後製"
+},
+{
+keywords:["電修","修圖"],
+reply:"🖥 電修通常需要至少 5 個工作天。流程：提供素材 → 修圖需求 → 製管評估 → 執行"
+},
+{
+keywords:["發票"],
+reply:"🧾 發票申請需要 Campaign Code、客戶資訊、金額與案子名稱"
+},
+{
+keywords:["代墊","報帳","請款","付款","車資","餐費","住宿"],
+reply:"💰 代墊流程：保留收據 → 填申請 → 附發票 → 送財務審核"
+}
+];
+
 async function aiSend() {
-  const input = document.getElementById('aiInput');
-  const btn   = document.getElementById('aiSendBtn');
-  const typing = document.getElementById('aiTyping');
-  const val = input.value.trim();
-  if (!val || btn.disabled) return;
 
-  // Ensure panel is open
-  aiOpen();
+aiOpen(); 
 
-  // Add user message
-  aiAddMsg('user', val);
-  aiHistory.push({ role: 'user', content: val });
-  input.value = '';
+const input = document.getElementById("aiInput");
+const msg = input.value.trim();
 
-  // Show typing
-  btn.disabled = true;
-  typing.style.display = 'flex';
-  const msgs = document.getElementById('aiMessages');
-  msgs.scrollTop = msgs.scrollHeight;
+if (!msg) return;
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: AI_CONTEXT,
-        messages: aiHistory,
-      })
-    });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || '抱歉，我現在無法回應，請稍後再試。';
-    aiHistory.push({ role: 'assistant', content: reply });
-    aiAddMsg('assistant', reply);
-  } catch(e) {
-    aiAddMsg('assistant', '⚠️ 連線發生問題，請檢查網路後再試。');
-  } finally {
-    btn.disabled = false;
-    typing.style.display = 'none';
-    msgs.scrollTop = msgs.scrollHeight;
-  }
+addUserMessage(msg);
+input.value = "";
+
+let answer = null;
+
+const text = msg.toLowerCase();
+
+for (const item of AE_KNOWLEDGE) {
+
+for (const k of item.keywords) {
+
+if (text.includes(k)) {
+
+answer = item.reply;
+break;
+
+}
+
+}
+
+if (answer) break;
+
+}
+
+if (!answer) {
+answer = randomReply();
+}
+
+setTimeout(() => {
+addAIMessage(answer);
+}, 500);
+
+}
+
+
+// 假AI fallback回覆
+function randomReply() {
+
+const replies = [
+
+"我還在學習這個問題 🤔 如果是 AE 工作流程，我應該可以幫你找答案！",
+"這題我不太確定，但我們可以一起查查 👀",
+"AE 的流程有點多，我幫你找找相關資料 👍"
+
+];
+
+return replies[Math.floor(Math.random() * replies.length)];
+
+
+}
+
+function addUserMessage(text){
+
+const box=document.getElementById("aiMessages");
+
+const div=document.createElement("div");
+div.className="ai-msg .ai-msg-user";
+
+div.innerHTML=`<div class="ai-msg-bubble">${text}</div>`;
+
+box.appendChild(div);
+box.scrollTop=box.scrollHeight;
+
+}
+
+function addAIMessage(text){
+
+const box=document.getElementById("aiMessages");
+
+const div=document.createElement("div");
+div.className="ai-msg .ai-msg-assistant";
+
+div.innerHTML=`<div class="ai-msg-bubble">${text}</div>`;
+
+box.appendChild(div);
+box.scrollTop=box.scrollHeight;
+
 }
 
 // Keep history manageable
@@ -2606,7 +2669,13 @@ function aiTrimHistory() {
   if (aiHistory.length > 20) aiHistory = aiHistory.slice(-18);
 }
 setInterval(aiTrimHistory, 30000);
+document.getElementById("aiSendBtn").addEventListener("click", aiSend);
 
+document.getElementById("aiInput").addEventListener("keydown", function(e){
+  if(e.key === "Enter"){
+    aiSend();
+  }
+});
 // ═══════════════════════════════════════════════════════════
 //  CANVAS ENGINE — atmospheric depth + particles
 //  • 3 depth layers moving at different speeds (parallax)
